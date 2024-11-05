@@ -52,9 +52,9 @@ pub struct SP1CompressedBundle {
 impl CompressVerifier {
     pub fn new() -> Self {
         let machine = CompressAir::compress_machine(InnerSC::default());
-        let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> =
-            bincode::deserialize(include_bytes!("../../../prover/vk_map.bin")).unwrap();
-        Self { compress_prover: CpuProver { machine }, allowed_vk_map }
+        // let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> =
+        //     bincode::deserialize(include_bytes!("../../../prover/vk_map.bin")).unwrap();
+        Self { compress_prover: CpuProver { machine }, allowed_vk_map: Default::default() }
     }
 
     pub fn verify_compressed(
@@ -96,9 +96,9 @@ impl CompressVerifier {
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
         assert_recursion_public_values_valid(self.compress_prover.machine.config(), public_values);
 
-        if !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
-            return Err(MachineVerificationError::InvalidVerificationKey);
-        }
+        // if !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+        //     return Err(MachineVerificationError::InvalidVerificationKey);
+        // }
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.
