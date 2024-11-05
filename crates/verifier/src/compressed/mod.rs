@@ -3,23 +3,28 @@ pub mod types;
 use alloc::borrow::Borrow;
 use alloc::collections::BTreeMap;
 use alloc::vec;
+use alloc::string::String;
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use p3_field::PrimeField32;
 use p3_symmetric::CryptographicHasher;
-use sp1_core_machine::reduce::SP1ReduceProof;
+use serde::{Deserialize, Serialize};
+use sp1_core_machine::{reduce::SP1ReduceProof, SP1_CIRCUIT_VERSION};
+use sp1_primitives::io::SP1PublicValues;
 use sp1_recursion_circuit::hash::FieldHasher;
 use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     machine::RecursionAir,
 };
+use sp1_stark::{air::PublicValues, Word};
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, InnerHash, MachineProof, MachineVerificationError,
     StarkGenericConfig, StarkMachine, DIGEST_SIZE,
 };
 
-use crate::compressed::types::*;
+pub use crate::compressed::types::*;
 
 pub type CoreSC = BabyBearPoseidon2;
 
@@ -37,6 +42,13 @@ pub struct CompressVerifier {
     allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SP1CompressedBundle {
+    pub proof: SP1ReduceProof<InnerSC>,
+    pub public_values: SP1PublicValues,
+    pub sp1_version: String,
+}
+
 impl CompressVerifier {
     pub fn new() -> Self {
         let machine = CompressAir::compress_machine(InnerSC::default());
@@ -47,9 +59,34 @@ impl CompressVerifier {
 
     pub fn verify_compressed(
         &self,
-        proof: &SP1ReduceProof<BabyBearPoseidon2>,
+        bundle: &SP1CompressedBundle,
         vk: &SP1VerifyingKey,
     ) -> Result<(), MachineVerificationError<CoreSC>> {
+        if bundle.sp1_version != SP1_CIRCUIT_VERSION {
+            return Err(MachineVerificationError::EmptyProof);
+        }
+
+        let proof = &bundle.proof;
+
+        let public_values: &PublicValues<Word<_>, _> =
+            proof.proof.public_values.as_slice().borrow();
+
+        // Get the committed value digest bytes.
+        let committed_value_digest_bytes = public_values
+            .committed_value_digest
+            .iter()
+            .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
+            .collect_vec();
+
+        // Make sure the committed value digest matches the public values hash.
+        for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash()) {
+            if *a != b {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed value digest doesn't match the public values hash",
+                ));
+            }
+        }
+
         let SP1ReduceProof { vk: compress_vk, proof } = proof;
         let mut challenger = self.compress_prover.machine.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
