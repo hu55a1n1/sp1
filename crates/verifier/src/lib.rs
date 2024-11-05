@@ -16,6 +16,9 @@ lazy_static! {
     pub static ref GROTH16_VK_BYTES: &'static [u8] = include_bytes!("../bn254-vk/groth16_vk.bin");
 }
 
+mod compressed;
+pub use compressed::CompressVerifier;
+
 mod constants;
 mod converter;
 mod error;
