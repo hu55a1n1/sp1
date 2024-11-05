@@ -17,7 +17,7 @@ lazy_static! {
 }
 
 mod compressed;
-pub use compressed::CompressVerifier;
+pub use compressed::{CompressVerifier, SP1CompressedBundle, SP1VerifyingKey};
 
 mod constants;
 mod converter;
